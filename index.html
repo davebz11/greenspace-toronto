@@ -19,7 +19,7 @@
   <div id="map"></div>
   <div id="error"></div>
   <div class="titlebar"><strong>Green Space Snapshot – Toronto</strong> <small>(greenspace % by neighbourhood)</small></div>
-  https://unpkg.com/leaflet@1.9.4/dist/leaflet.js</script>
+  <script src="https://unpkg.com/leaflet@1.9.t.js</script>
   <script>
     const map=L.map('map').setView([43.70,-79.38],11);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
@@ -30,16 +30,9 @@
       errBox.style.display = 'block';
       console.error(msg);
     }
-
     function toNum(x){ const n = Number(x); return Number.isFinite(n) ? n : null; }
-    function getColor(p){ // p is a Number or null
-      if(p==null) return '#ccc';
-      return p<20?'#d73027': p<30?'#fc8d59': p<40?'#fee08b': p<50?'#d9ef8b': p<60?'#91cf60':'#1a9850';
-    }
-    function style(f){
-      const p = toNum(f.properties.greenspace_percent);
-      return { fillColor:getColor(p), weight:1, color:'#555', fillOpacity:.7 };
-    }
+    function getColor(p){ if(p==null) return '#ccc'; return p<20?'#d73027': p<30?'#fc8d59': p<40?'#fee08b': p<50?'#d9ef8b': p<60?'#91cf60':'#1a9850'; }
+    function style(f){ const p = toNum(f.properties.greenspace_percent); return { fillColor:getColor(p), weight:1, color:'#555', fillOpacity:.7 }; }
 
     const info=L.control();
     info.onAdd=function(){this._div=L.DomUtil.create('div','info');this.update();return this._div;};
@@ -67,7 +60,11 @@
     fetch('toronto_greenspace.geojson')
       .then(r => { if(!r.ok) throw new Error(`GeoJSON HTTP error ${r.status}`); return r.json(); })
       .then(data=>{
-        // Defensive: filter out features without geometry or numeric value
+        if(!data || data.type!=='FeatureCollection'){ showError('GeoJSON is not a FeatureCollection.'); return; }
+        console.log('Features loaded:', (data.features||[]).length);
+        if((data.features||[]).length) console.log('First feature properties:', data.features[0].properties);
+
+        // Filter any null geometries
         data.features = (data.features||[]).filter(f=>f && f.geometry);
 
         layer=L.geoJson(data,{style,onEachFeature:(f,l)=>{
@@ -81,7 +78,7 @@
         if(layer.getLayers().length){
           map.fitBounds(layer.getBounds());
         }else{
-          showError('Loaded GeoJSON, but no features rendered. Check that geometries are valid and in EPSG:4326.');
+          showError('Loaded GeoJSON but no features were rendered. Check CRS (must be EPSG:4326) and geometry validity.');
         }
       })
       .catch(err => showError('Failed to load GeoJSON: ' + err.message));
