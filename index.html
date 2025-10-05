@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Green Space Snapshot – Toronto</title>
+  <link rel="stylesheet" href=".4/dist/leaflet.css
+  <style>
+    html,body,#map{height:100%;margin:0}
+    .info{padding:10px;background:#fff;box-shadow:0 0 15px rgba(0,0,0,.2);border-radius:6px}
+    .legend{line-height:18px;color:#555;background:#fff;padding:6px 8px;box-shadow:0 0 15px rgba(0,0,0,.2);border-radius:6px}
+    .legend i{width:18px;height:18px;float:left;margin-right:8px;opacity:.7}
+    .titlebar{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#fff;padding:8px 12px;border-radius:6px;font-family:system-ui,Segoe UI,Roboto,Arial;box-shadow:0 1px 6px rgba(0,0,0,.15)}
+    .titlebar small{color:#666}
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="titlebar"><strong>Green Space Snapshot – Toronto</strong> <small>(greenspace % by neighbourhood)</small></div>
+  https://unpkg.com/leaflet@1.9.4/dist/leaflet.js
+  <script>
+    const map=L.map('map').setView([43.70,-79.38],11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+
+    function getColor(p){if(p==null||isNaN(p))return '#ccc'; return p<20?'#d73027':p<30?'#fc8d59':p<40?'#fee08b':p<50?'#d9ef8b':p<60?'#91cf60':'#1a9850';}
+    function style(f){return{fillColor:getColor(f.properties.greenspace_percent),weight:1,color:'#555',fillOpacity:.7};}
+
+    const info=L.control();
+    info.onAdd=function(){this._div=L.DomUtil.create('div','info');this.update();return this._div;};
+    info.update=function(props){
+      const name=props&&(props['AREA_NAME']||props['Neighbourhood Name']||'Neighbourhood');
+      const gs=props?(props.greenspace_percent?.toFixed?props.greenspace_percent.toFixed(1):props.greenspace_percent):null;
+      const tag=props&&(props['TSNS 2020 Designation']||props['CLASSIFICATION']);
+      this._div.innerHTML='<h4>Neighbourhood</h4>'+(props?`<b>${name}</b><br/>Green space: <b>${gs}%</b>`+(tag?`<br/><small>${tag}</small>`:''):'Hover over an area');
+    };
+    info.addTo(map);
+
+    const legend=L.control({position:'bottomright'});
+    legend.onAdd=function(){
+      const div=L.DomUtil.create('div','legend');const grades=[0,20,30,40,50,60];const labels=[];
+      for(let i=0;i<grades.length;i++){const from=grades[i],to=grades[i+1]; labels.push('<i style="background:'+getColor(from+.1)+'"></i> '+from+(to?'&ndash;'+to:'+')+'%');}
+      div.innerHTML=labels.join('<br>');return div;
+    };
+    legend.addTo(map);
+
+    let layer;
+    function highlight(e){const l=e.target;l.setStyle({weight:3,color:'#000',fillOpacity:.8});l.bringToFront();info.update(l.feature.properties);}
+    function reset(e){layer.resetStyle(e.target);info.update();}
+    function zoom(e){map.fitBounds(e.target.getBounds());}
+
+    fetch('toronto_greenspace.geojson')
+      .then(r=>r.json())
+      .then(data=>{
+        layer=L.geoJson(data,{style,onEachFeature:(f,l)=>{
+          l.on({mouseover:highlight,mouseout:reset,click:zoom});
+          const name=f.properties['AREA_NAME']||f.properties['Neighbourhood Name']||'Neighbourhood';
+          const gs=f.properties.greenspace_percent;
+          const tag=f.properties['TSNS 2020 Designation']||f.properties['CLASSIFICATION'];
+          l.bindPopup(`<b>${name}</b><br>Green space: <b>${(gs&&gs.toFixed)?gs.toFixed(1):gs}%</b>`+(tag?`<br><small>${tag}</small>`:''));}})
+        .addTo(map);
+        map.fitBounds(layer.getBounds());
+      });
+  </script>
+</body>
+</html>
